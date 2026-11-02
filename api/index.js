@@ -1,39 +1,42 @@
-export default async function handler(req, res) {
-  // السماح للتطبيق بالوصول
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  if (req.method === 'OPTIONS') return res.status(200).end();
+export const config = { runtime: 'edge' };
 
-  const { id, token } = req.query;
+export default async function handler(req) {
+  const { searchParams } = new URL(req.url);
+  const token = searchParams.get("token");
+  const id = searchParams.get("id");
 
-  // كلمة السر الخاصة بك
+  // كلمة السر
   if (token !== "Ahmed20072007_TV") {
-    return res.status(403).send("Unauthorized");
+    return new Response("Unauthorized", { status: 403 });
   }
 
-  // الروابط الأصلية (أضفنا رابطين للتجربة)
+  // الروابط (للتجربة)
   const streams = {
     "tod1": "https://castx.online/live/beinsports1/master.m3u8",
     "g1_sd": "http://hydraa.st:80/live/ghadax88/0569777788/406823.m3u8"
   };
 
   const targetUrl = streams[id];
-  if (!targetUrl) return res.status(404).send("Stream Not Found");
+  if (!targetUrl) return new Response("Stream Not Found", { status: 404 });
 
   try {
     const response = await fetch(targetUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Range": req.headers.range || ""
+        "Range": req.headers.get("range") || ""
       }
     });
 
-    const contentType = response.headers.get('content-type');
-    if (contentType) res.setHeader('Content-Type', contentType);
+    const newHeaders = new Headers(response.headers);
+    newHeaders.set("Access-Control-Allow-Origin", "*");
+    newHeaders.set("Access-Control-Allow-Methods", "GET, OPTIONS");
 
-    const data = await response.arrayBuffer();
-    res.status(response.status).send(Buffer.from(data));
-  } catch (error) {
-    res.status(500).send("Error fetching stream");
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: newHeaders
+    });
+  } catch (e) {
+    return new Response("Error", { status: 500 });
   }
 }
